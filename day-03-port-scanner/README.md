@@ -1,177 +1,160 @@
-<div align="center">
+ <img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:0D1117,100:00F0FF&height=120&section=header&text=DAY%2003%20//%20TCP%20PORT%20SCANNER&fontSize=32&fontColor=00F0FF&fontAlignY=45&desc=Networking%20%C2%B7%20Error%20Handling%20%C2%B7%20Resource%20Management&descAlignY=70&descSize=14&descColor=8A2BE2" />
 
-```
-┌────────────────────────────────────────────┐
-│   D A Y   0 3   ::   N E T W O R K I N G    │
-│   T C P   P O R T   S C A N N E R           │
-└────────────────────────────────────────────┘
-```
+<table width="100%">
+<tr>
+<td align="center" width="25%">
 
-![Concept](https://img.shields.io/badge/CONCEPT-NET_%26_ERRORS-00F0FF?style=for-the-badge&labelColor=0D1117)
-![Status](https://img.shields.io/badge/STATUS-COMPLETE-39FF14?style=for-the-badge&labelColor=0D1117)
-![Lang](https://img.shields.io/badge/GO-00ADD8?style=for-the-badge&logo=go&logoColor=000000&labelColor=0D1117)
-![Layer](https://img.shields.io/badge/LAYER-TRANSPORT_(TCP)-FF2079?style=for-the-badge&labelColor=0D1117)
+**CONCEPT**
+`net + error`
 
-</div>
+</td>
+<td align="center" width="25%">
+
+**LAYER**
+`L4 · TCP`
+
+</td>
+<td align="center" width="25%">
+
+**STATUS**
+🟢 `COMPLETE`
+
+</td>
+<td align="center" width="25%">
+
+**DIFFICULTY**
+`▰▰▰▱▱`
+
+</td>
+</tr>
+</table>
 
 <br>
 
-## 🎯 Objective
-
-Build a simple TCP port scanner while learning Go's approach to networking, multiple return values, error handling, and resource management.
-
-<div align="center">
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
-
-## ⚙️ Engineering Problem
-
-A port scanner needs to answer one deceptively simple question:
-
+> ### 🎯 The Question This Project Answers
 > **"Can I establish a TCP connection to this host and port?"**
+> That sounds like a yes/no question. It isn't — and this project is about *why*.
 
-Unlike a plain boolean check, a networking operation can fail for very different reasons — and those reasons matter:
+<br>
 
-| Failure Mode | What It Actually Means |
-|---|---|
-| 🔒 Port closed | Nothing is listening — expected, not an error |
-| 🌐 Hostname unresolvable | DNS failed before a connection was ever attempted |
-| 📡 Network unavailable | The local machine can't even reach the network |
-| 🧱 Firewall filtering | The connection was silently dropped, not refused |
-| ⏱️ Connection timed out | No response — could be filtering, could be latency |
+## 📡 Why This Isn't a Boolean Problem
 
-A boolean can't tell these apart. This project explores how Go communicates those outcomes using **explicit error values** instead of collapsing them into a single `true`/`false`.
+A port scan can fail for reasons that all *look* the same from the outside but mean completely different things to the person operating the system:
 
-<div align="center">
+<table>
+<tr><th>Signal</th><th>What Actually Happened</th><th>Operator Response</th></tr>
+<tr><td>🔒 Closed</td><td>Nothing is listening on that port</td><td>Expected — not an incident</td></tr>
+<tr><td>🌐 DNS failure</td><td>The hostname never resolved</td><td>Check DNS, not the target</td></tr>
+<tr><td>📡 Network unreachable</td><td>Local machine has no route out</td><td>Check your own network stack</td></tr>
+<tr><td>🧱 Filtered</td><td>A firewall silently dropped it</td><td>Expected in hardened environments</td></tr>
+<tr><td>⏱️ Timeout</td><td>No response at all</td><td>Could be filtering, could be latency</td></tr>
+</table>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A single `bool` erases every row of that table down to one bit. This project is about refusing to make that trade.
 
-</div>
+<br>
 
-## 🧩 Concepts Covered
+## 🔬 How the Scan Actually Works
 
+**The handshake, moment to moment:**
+
+```mermaid
+sequenceDiagram
+    participant P as Program
+    participant OS as OS Socket Layer
+    participant T as Target Host
+
+    P->>OS: net.Dial("tcp", host:port)
+    OS->>T: SYN
+    alt Port open
+        T->>OS: SYN-ACK
+        OS->>P: connection established
+        P->>OS: defer conn.Close()
+        OS->>T: FIN
+    else Port closed
+        T->>OS: RST
+        OS->>P: error: connection refused
+    else Filtered / no response
+        Note over OS,T: no reply within timeout
+        OS->>P: error: i/o timeout
+    end
 ```
-net package
-net.Dial()
-net.JoinHostPort()
-Multiple return values
-error
-defer
-Resource cleanup
-strconv.Itoa()
+
+**What the caller does with the result:**
+
+```mermaid
+flowchart LR
+    A["ScanPort(host, port)"] --> B{"err == nil?"}
+    B -- "yes" --> C["✅ true, nil<br/>port is open"]
+    B -- "no" --> D{"inspect err"}
+    D --> E["🔒 refused<br/>→ closed"]
+    D --> F["⏱️ timeout<br/>→ filtered or slow"]
+    D --> G["🌐 DNS/net error<br/>→ environment issue"]
+
+    style A fill:#0D1117,stroke:#00F0FF,color:#00F0FF
+    style B fill:#0D1117,stroke:#FF2079,color:#fff
+    style C fill:#0D1117,stroke:#39FF14,color:#39FF14
+    style D fill:#0D1117,stroke:#FF2079,color:#fff
+    style E fill:#0D1117,stroke:#8A2BE2,color:#fff
+    style F fill:#0D1117,stroke:#8A2BE2,color:#fff
+    style G fill:#0D1117,stroke:#8A2BE2,color:#fff
 ```
 
-<div align="center">
+<br>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
-
-## 🛠️ The Project
-
-The application attempts to establish a real TCP connection to a specified host and port.
-
-- If the TCP handshake **succeeds**, the port is considered open.
-- If the connection **cannot be established**, the function returns an error explaining why.
-
-### Function Signature
+## 🛠️ The Signature
 
 ```go
 func ScanPort(host string, port int) (bool, error)
 ```
 
-| Return Value | Meaning |
+| Returns | Answers |
 |---|---|
-| `bool` | Whether the TCP connection succeeded |
-| `error` | Why the connection could not be established, if applicable |
+| `bool` | Did the TCP handshake succeed? |
+| `error` | If not — why, specifically? |
 
-<div align="center">
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
-
-## 🔀 Connection Flow
-
-```mermaid
-flowchart TD
-    A["Host + Port"] --> B["net.JoinHostPort()"]
-    B --> C["net.Dial(&quot;tcp&quot;, address)"]
-    C --> D{"Handshake<br/>successful?"}
-    D -- "yes" --> E["defer conn.Close()"]
-    E --> F(("return true, nil"))
-    D -- "no" --> G(("return false, err"))
-
-    style A fill:#0D1117,stroke:#00F0FF,color:#00F0FF
-    style B fill:#0D1117,stroke:#00F0FF,color:#fff
-    style C fill:#0D1117,stroke:#00F0FF,color:#fff
-    style D fill:#0D1117,stroke:#FF2079,color:#fff
-    style E fill:#0D1117,stroke:#39FF14,color:#39FF14
-    style F fill:#0D1117,stroke:#39FF14,color:#39FF14
-    style G fill:#0D1117,stroke:#FF2079,color:#FF2079
-```
-
-<div align="center">
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
+<br>
 
 ## 🧭 Engineering Decisions
 
-<table>
-<tr><td>
+<details>
+<summary><b>Why <code>net.JoinHostPort()</code> instead of <code>fmt.Sprintf()</code>?</b></summary>
+<br>
 
-**Why `net.JoinHostPort()`?**
+Hand-formatting `host + ":" + port` quietly breaks the moment `host` is an IPv6 address — `2001:db8::1:8080` is ambiguous garbage without bracket-wrapping. `net.JoinHostPort()` handles IPv4, hostnames, and IPv6 correctly, every time, without the caller needing to know the difference.
+</details>
 
-Instead of manually formatting strings with `fmt.Sprintf`, the project uses `net.JoinHostPort()` because it correctly handles IPv4, hostnames, *and* IPv6 addresses — bracket-wrapping included. A hand-rolled `host + ":" + port` string quietly breaks on IPv6.
+<details>
+<summary><b>Why return <code>(bool, error)</code> instead of just <code>bool</code>?</b></summary>
+<br>
 
-</td></tr>
-<tr><td>
+The caller needs two answers, not one: *was it open*, and *if not, why*. Collapsing that to a single boolean throws away exactly the information in the table above — the difference between "closed" and "your DNS is broken" disappears.
+</details>
 
-**Why return `(bool, error)`?**
+<details>
+<summary><b>Why <code>defer conn.Close()</code>?</b></summary>
+<br>
 
-The caller needs two pieces of information: *was the port open*, and *if the scan failed, why*. Returning only a boolean throws away the debugging information that separates "closed port" from "your DNS is broken."
+A live TCP connection is an OS-level resource (a file descriptor under the hood). `defer` guarantees it's released no matter which of the three branches in the sequence diagram above the function takes — success, refusal, or timeout — without needing a `Close()` call duplicated at every return point.
+</details>
 
-</td></tr>
-<tr><td>
+<br>
 
-**Why use `defer`?**
-
-Once a TCP connection is established, it becomes an operating-system resource. `defer conn.Close()` guarantees the connection is released no matter which path the function takes to return — success, early failure, or panic.
-
-</td></tr>
-</table>
-
-<div align="center">
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
-
-## 🧠 Lessons Learned
+## 💡 Lessons Learned
 
 - Networking APIs should return enough information for callers to make informed decisions — not just a verdict.
-- A closed port is not necessarily a programming error; it's a valid outcome the caller needs to distinguish from a *broken* scan.
-- `defer` makes resource cleanup reliable and easy to maintain, instead of relying on remembering to close things at every exit point.
-- The Go standard library provides networking abstractions (`net.JoinHostPort`, `net.Dial`) that are safer than manually manipulating strings.
+- A closed port is a valid outcome, not a bug — the scanner's job is to distinguish it from a *broken scan*, not to treat every failure the same.
+- `defer` turns resource cleanup from "something I have to remember" into "something the language guarantees."
+- The standard library's networking primitives (`net.JoinHostPort`, `net.Dial`) are safer than hand-rolled string formatting — they encode years of edge cases I'd otherwise hit one at a time.
 
-<div align="center">
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-</div>
+<br>
 
 ## ⏭️ Next Step
 
-Expand the scanner to inspect **multiple ports concurrently** and organize the project into reusable components — the natural on-ramp into Go's concurrency model.
+> Expand the scanner to inspect **multiple ports concurrently**, and split the project into reusable components — the natural on-ramp into Go's concurrency model.
 
-<div align="center">
+<br>
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:00F0FF,100:0D1117&height=80&section=footer" />
 
-**⬅ Back to** [`Go Cloud Security Lab`](../README.md)
-
-</div>
+**⬅ Back to** [`day-03 notes`](./notes.md) · [`Go Cloud Security Lab`](../README.md)
